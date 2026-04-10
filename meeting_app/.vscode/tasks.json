@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Flutter on RMX3312",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"-d",
+				"113f5562",
+				"--dart-define=FASTAPI_BASE_URL=http://192.168.100.190:8000"
+			],
+			"isBackground": true
+		}
+	]
+}
+	]
+}
