@@ -78,6 +78,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (lower.contains('suraj') || lower.contains('task')) {
       response = 'In the Product Strategy Meeting on April 7, you assigned Suraj the task of researching competitive dairy brands and pricing models. The due date is April 16, 2026.';
+    } else if (lower.contains('when is the next meeting') ||
+        lower.contains('next meeting')) {
+      response =
+          'Your next meeting is Regional Sales Forecast Sync on Apr 12 at 11:00 AM.';
     } else if (lower.contains('upcoming') || lower.contains('meeting') && lower.contains('list')) {
       response = 'Here are your upcoming meetings:\n\n• April 15 – Review interactive plots with Jeremy\n• April 16 – Review revenue insights with Priya\n• April 17 – Amul strategy follow-up meeting\n• April 20 – Q1 board presentation';
     } else if (lower.contains('revenue') || lower.contains('q1')) {

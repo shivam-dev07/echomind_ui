@@ -1,7 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../core/meeting_state.dart';
 import '../core/mock_data.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
@@ -43,9 +45,12 @@ class _SummaryScreenState extends State<SummaryScreen>
     await Future.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
 
-    final found = MockDataProvider.meetings.firstWhere(
+    final meetings = context.read<MeetingsController>().meetings;
+    if (meetings.isEmpty) return;
+
+    final found = meetings.firstWhere(
       (m) => m.id == widget.meetingId,
-      orElse: () => MockDataProvider.meetings.first,
+      orElse: () => meetings.first,
     );
 
     setState(() {
@@ -361,10 +366,10 @@ class _SummaryScreenState extends State<SummaryScreen>
               title: 'Processing Timeline',
               icon: Icons.timeline_rounded,
               child: Column(
-                children: _meeting.timeline.asMap().entries.map((entry) {
+                children: _meeting.processingTimeline.asMap().entries.map((entry) {
                   final event = entry.value;
                   final index = entry.key;
-                  final isLast = index == _meeting.timeline.length - 1;
+                  final isLast = index == _meeting.processingTimeline.length - 1;
 
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -403,13 +408,13 @@ class _SummaryScreenState extends State<SummaryScreen>
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                event.label,
+                                 event.state.timelineLabel,
                                 style: AppTypography.labelLarge.copyWith(
                                   fontSize: 13,
                                 ),
                               ),
                               Text(
-                                event.time,
+                                 _formatTimelineTimestamp(event.timestamp),
                                 style: AppTypography.caption.copyWith(
                                   color: AppColors.textTertiary,
                                   fontSize: 11,
@@ -608,9 +613,9 @@ class _SummaryScreenState extends State<SummaryScreen>
                 ),
                 const SizedBox(height: 28),
                 Text(
-                  _meeting.status == 'transcribing'
-                      ? 'Transcribing...'
-                      : 'Processing...',
+                  _meeting.state == MeetingCardState.transcribing
+                       ? 'Transcribing...'
+                       : 'Processing...',
                   style: AppTypography.headlineMedium,
                 ),
                 const SizedBox(height: 12),
@@ -623,7 +628,7 @@ class _SummaryScreenState extends State<SummaryScreen>
                 ),
                 const SizedBox(height: 28),
                 // Timeline for this meeting
-                ...(_meeting.timeline.map((event) {
+                ...(_meeting.processingTimeline.map((event) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
@@ -635,14 +640,14 @@ class _SummaryScreenState extends State<SummaryScreen>
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          event.label,
+                          event.state.timelineLabel,
                           style: AppTypography.bodySmall.copyWith(
                             color: AppColors.textSecondary,
                           ),
                         ),
                         const Spacer(),
                         Text(
-                          event.time,
+                          _formatTimelineTimestamp(event.timestamp),
                           style: AppTypography.caption.copyWith(
                             fontSize: 10,
                           ),
@@ -668,5 +673,29 @@ class _SummaryScreenState extends State<SummaryScreen>
       Color(0xFF8B5CF6),
     ];
     return colors[index % colors.length];
+  }
+
+  String _formatTimelineTimestamp(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final month = months[date.month - 1];
+    final day = date.day.toString().padLeft(2, '0');
+    final hour24 = date.hour;
+    final period = hour24 >= 12 ? 'PM' : 'AM';
+    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$month $day, $hour12:$minute $period';
   }
 }

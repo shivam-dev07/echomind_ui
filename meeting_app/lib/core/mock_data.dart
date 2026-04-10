@@ -1,6 +1,66 @@
-// ─────────────────────────────────────────────────────────────
-// ECHOMIND — Mock Data Models and Provider
-// ─────────────────────────────────────────────────────────────
+enum MeetingCardState {
+  recording,
+  uploading,
+  transcribing,
+  analyzingInsights,
+  generatingSummary,
+  completed,
+}
+
+extension MeetingCardStateX on MeetingCardState {
+  String get cardLabel {
+    switch (this) {
+      case MeetingCardState.recording:
+        return 'Recording';
+      case MeetingCardState.uploading:
+        return 'Uploading Audio';
+      case MeetingCardState.transcribing:
+        return 'Transcribing Meeting';
+      case MeetingCardState.analyzingInsights:
+        return 'Analyzing Insights';
+      case MeetingCardState.generatingSummary:
+        return 'Generating Summary';
+      case MeetingCardState.completed:
+        return 'Completed';
+    }
+  }
+
+  String get timelineLabel {
+    switch (this) {
+      case MeetingCardState.recording:
+        return 'Recording';
+      case MeetingCardState.uploading:
+        return 'Uploading Audio';
+      case MeetingCardState.transcribing:
+        return 'Transcribing Meeting';
+      case MeetingCardState.analyzingInsights:
+        return 'Extracting Insights';
+      case MeetingCardState.generatingSummary:
+        return 'Generating Summary';
+      case MeetingCardState.completed:
+        return 'Completed';
+    }
+  }
+
+  double get progress {
+    switch (this) {
+      case MeetingCardState.recording:
+        return 0.08;
+      case MeetingCardState.uploading:
+        return 0.25;
+      case MeetingCardState.transcribing:
+        return 0.5;
+      case MeetingCardState.analyzingInsights:
+        return 0.72;
+      case MeetingCardState.generatingSummary:
+        return 0.9;
+      case MeetingCardState.completed:
+        return 1.0;
+    }
+  }
+
+  bool get isProcessing => this != MeetingCardState.completed;
+}
 
 class Participant {
   final String name;
@@ -28,15 +88,13 @@ class ActionItem {
   });
 }
 
-class TimelineEvent {
-  final String label;
-  final String time;
-  final bool isCompleted;
+class ProcessingTimelineItem {
+  final MeetingCardState state;
+  final DateTime timestamp;
 
-  const TimelineEvent({
-    required this.label,
-    required this.time,
-    this.isCompleted = true,
+  const ProcessingTimelineItem({
+    required this.state,
+    required this.timestamp,
   });
 }
 
@@ -46,14 +104,14 @@ class Meeting {
   final String date;
   final String time;
   final String duration;
-  final String status; // completed, processing, transcribing, analyzing, uploaded
+  final MeetingCardState state;
   final List<Participant> participants;
   final String executiveSummary;
   final List<String> keyMetrics;
   final List<ActionItem> actionItems;
   final List<String> decisions;
   final String transcriptSnippet;
-  final List<TimelineEvent> timeline;
+  final List<ProcessingTimelineItem> processingTimeline;
 
   const Meeting({
     required this.id,
@@ -61,15 +119,47 @@ class Meeting {
     required this.date,
     required this.time,
     required this.duration,
-    required this.status,
+    required this.state,
     required this.participants,
     required this.executiveSummary,
     required this.keyMetrics,
     required this.actionItems,
     required this.decisions,
     required this.transcriptSnippet,
-    required this.timeline,
+    required this.processingTimeline,
   });
+
+  Meeting copyWith({
+    String? id,
+    String? title,
+    String? date,
+    String? time,
+    String? duration,
+    MeetingCardState? state,
+    List<Participant>? participants,
+    String? executiveSummary,
+    List<String>? keyMetrics,
+    List<ActionItem>? actionItems,
+    List<String>? decisions,
+    String? transcriptSnippet,
+    List<ProcessingTimelineItem>? processingTimeline,
+  }) {
+    return Meeting(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      date: date ?? this.date,
+      time: time ?? this.time,
+      duration: duration ?? this.duration,
+      state: state ?? this.state,
+      participants: participants ?? this.participants,
+      executiveSummary: executiveSummary ?? this.executiveSummary,
+      keyMetrics: keyMetrics ?? this.keyMetrics,
+      actionItems: actionItems ?? this.actionItems,
+      decisions: decisions ?? this.decisions,
+      transcriptSnippet: transcriptSnippet ?? this.transcriptSnippet,
+      processingTimeline: processingTimeline ?? this.processingTimeline,
+    );
+  }
 }
 
 class ChatMessageData {
@@ -84,214 +174,294 @@ class ChatMessageData {
   });
 }
 
-// ─────────────────────────────────────────────────────────────
-// MOCK DATA PROVIDER
-// ─────────────────────────────────────────────────────────────
+class MeetingDraft {
+  final String title;
+  final List<Participant> participants;
+  final String executiveSummary;
+  final List<String> keyMetrics;
+  final List<ActionItem> actionItems;
+  final List<String> decisions;
+  final String transcriptSnippet;
+
+  const MeetingDraft({
+    required this.title,
+    required this.participants,
+    required this.executiveSummary,
+    required this.keyMetrics,
+    required this.actionItems,
+    required this.decisions,
+    required this.transcriptSnippet,
+  });
+}
 
 class MockDataProvider {
   static const String userName = 'Sujal Bandodkar';
   static const String userEmail = 'sujal.bandodkar@echomind.ai';
   static const String userInitials = 'SB';
 
-  // ─── Meetings ────────────────────────────────────────────
+  static List<Meeting> initialMeetings() {
+    final now = DateTime.now();
+    return [
+      _completedMeeting(
+        id: 'm1',
+        startedAt: now.subtract(const Duration(days: 3, hours: 2)),
+        duration: '42 min',
+        draft: meetingDrafts[0],
+      ),
+      _completedMeeting(
+        id: 'm2',
+        startedAt: now.subtract(const Duration(days: 2, hours: 4)),
+        duration: '38 min',
+        draft: meetingDrafts[1],
+      ),
+      _completedMeeting(
+        id: 'm3',
+        startedAt: now.subtract(const Duration(days: 2, hours: 22)),
+        duration: '29 min',
+        draft: meetingDrafts[2],
+      ),
+      _completedMeeting(
+        id: 'm4',
+        startedAt: now.subtract(const Duration(days: 1, hours: 6)),
+        duration: '47 min',
+        draft: meetingDrafts[3],
+      ),
+      _completedMeeting(
+        id: 'm5',
+        startedAt: now.subtract(const Duration(hours: 8)),
+        duration: '26 min',
+        draft: meetingDrafts[4],
+      ),
+    ];
+  }
 
-  static final List<Meeting> meetings = [
-    Meeting(
-      id: 'm1',
-      title: 'Product Strategy Meeting – Amul Dairy Platform',
-      date: 'Apr 07, 2026',
-      time: '3:00 PM',
-      duration: '47 min',
-      status: 'completed',
-      participants: const [
+  static Meeting _completedMeeting({
+    required String id,
+    required DateTime startedAt,
+    required String duration,
+    required MeetingDraft draft,
+  }) {
+    return Meeting(
+      id: id,
+      title: draft.title,
+      date: _formatDate(startedAt),
+      time: _formatTime(startedAt),
+      duration: duration,
+      state: MeetingCardState.completed,
+      participants: draft.participants,
+      executiveSummary: draft.executiveSummary,
+      keyMetrics: draft.keyMetrics,
+      actionItems: draft.actionItems,
+      decisions: draft.decisions,
+      transcriptSnippet: draft.transcriptSnippet,
+      processingTimeline: [
+        ProcessingTimelineItem(
+          state: MeetingCardState.uploading,
+          timestamp: startedAt.add(const Duration(minutes: 42, seconds: 6)),
+        ),
+        ProcessingTimelineItem(
+          state: MeetingCardState.transcribing,
+          timestamp: startedAt.add(const Duration(minutes: 42, seconds: 25)),
+        ),
+        ProcessingTimelineItem(
+          state: MeetingCardState.analyzingInsights,
+          timestamp: startedAt.add(const Duration(minutes: 42, seconds: 44)),
+        ),
+        ProcessingTimelineItem(
+          state: MeetingCardState.generatingSummary,
+          timestamp: startedAt.add(const Duration(minutes: 43, seconds: 5)),
+        ),
+        ProcessingTimelineItem(
+          state: MeetingCardState.completed,
+          timestamp: startedAt.add(const Duration(minutes: 43, seconds: 22)),
+        ),
+      ],
+    );
+  }
+
+  static const List<MeetingDraft> meetingDrafts = [
+    MeetingDraft(
+      title: 'Amul Dairy Strategy Meeting',
+      participants: [
         Participant(name: 'Jacob', role: 'Frontend', initials: 'JC'),
         Participant(name: 'Sarah', role: 'Backend', initials: 'SA'),
         Participant(name: 'Jeremy', role: 'Data Analytics', initials: 'JR'),
         Participant(name: 'Suraj', role: 'Research', initials: 'SU'),
       ],
       executiveSummary:
-          'The meeting focused on building a new website for Amul Milk and Dairy Products and analyzing annual revenue data to generate insights that can improve sales strategy and online reach. The team aligned on development timelines and decided to pursue a data-driven approach for the platform launch.',
-      keyMetrics: const [
-        'Annual revenue dataset reviewed',
-        'Dairy product sales distribution analyzed',
-        'Online vs offline revenue ratio: 35:65',
-        'Monthly product demand growth: +12%',
+          'Discussion focused on building a digital platform for Amul Dairy Products and analyzing historical revenue data to generate strategic insights.',
+      keyMetrics: [
+        'Online demand trend analyzed across 18 months',
+        'High-margin SKUs identified for Q2 campaigns',
+        'D2C conversion opportunity estimated at +14%',
       ],
-      actionItems: const [
+      actionItems: [
         ActionItem(
           assignedTo: 'Jacob',
-          description: 'Work on the front end of the Amul Milk and Dairy Products website.',
+          description: 'Build the frontend website.',
           dueDate: 'Apr 14, 2026',
         ),
         ActionItem(
           assignedTo: 'Sarah',
-          description: 'Build backend APIs and support frontend integration.',
+          description: 'Develop backend APIs.',
           dueDate: 'Apr 14, 2026',
         ),
         ActionItem(
           assignedTo: 'Jeremy',
-          description: 'Analyze annual revenue data and generate interactive plots.',
+          description: 'Analyze revenue data.',
           dueDate: 'Apr 15, 2026',
         ),
         ActionItem(
           assignedTo: 'Suraj',
-          description: 'Research competitive dairy brands and pricing models.',
+          description: 'Research competitor dairy brands.',
           dueDate: 'Apr 16, 2026',
         ),
       ],
-      decisions: const [
-        'Build a new website for Amul Dairy Products.',
-        'Analyze revenue data for strategic insights.',
-        'Conduct follow-up meeting on April 17.',
-        'Use React + Node.js stack for the platform.',
+      decisions: [
+        'Launch MVP in 4 weeks with focused SKU catalog',
+        'Review cohort retention metrics in weekly standup',
+        'Prioritize revenue dashboard for leadership',
       ],
       transcriptSnippet:
-          'Jacob: I think we should focus on the landing page first, then move on to the product catalog...\nSarah: Agreed. I can have the APIs ready by Thursday...',
-      timeline: const [
-        TimelineEvent(label: 'Transcribing', time: 'Apr 7, 3:11 PM'),
-        TimelineEvent(label: 'Analyzing', time: 'Apr 7, 3:12 PM'),
-        TimelineEvent(label: 'Completed', time: 'Apr 7, 3:12 PM'),
-      ],
+          'Jacob: We can move faster by shipping the top-selling categories first. Sarah: Agreed, API contracts can be finalized by Thursday.',
     ),
-    Meeting(
-      id: 'm2',
-      title: 'Q1 Revenue Review – Finance Team',
-      date: 'Apr 05, 2026',
-      time: '11:00 AM',
-      duration: '32 min',
-      status: 'completed',
-      participants: const [
-        Participant(name: 'Ananya', role: 'CFO', initials: 'AN'),
-        Participant(name: 'Rohan', role: 'Finance Lead', initials: 'RH'),
-        Participant(name: 'Priya', role: 'Analyst', initials: 'PR'),
+    MeetingDraft(
+      title: 'Regional Sales Forecast Sync',
+      participants: [
+        Participant(name: 'Neha', role: 'Sales Lead', initials: 'NH'),
+        Participant(name: 'Rohan', role: 'Finance', initials: 'RH'),
+        Participant(name: 'Maya', role: 'Ops', initials: 'MY'),
       ],
       executiveSummary:
-          'Reviewed Q1 financial performance. Total revenue exceeded projections by 8%. The team identified key growth drivers in the dairy premium segment and flagged supply chain costs as a concern for Q2.',
-      keyMetrics: const [
-        'Q1 Revenue: ₹42.3 Cr (vs ₹39.1 Cr target)',
-        'Gross margin: 34.2%',
-        'Operating expenses up 5.1%',
-        'Premium segment growth: +22%',
+          'Team aligned on regional demand forecasts and identified inventory pressure in the West zone for the next two cycles.',
+      keyMetrics: [
+        'Forecast accuracy improved to 87%',
+        'West region shortfall risk at 11%',
+        'Repeat order growth +9% month-over-month',
       ],
-      actionItems: const [
+      actionItems: [
         ActionItem(
-          assignedTo: 'Rohan',
-          description: 'Prepare Q2 budget forecast with adjusted cost projections.',
+          assignedTo: 'Neha',
+          description: 'Share revised zone-level sales plan.',
           dueDate: 'Apr 12, 2026',
         ),
         ActionItem(
-          assignedTo: 'Priya',
-          description: 'Build revenue breakdown dashboard for leadership.',
-          dueDate: 'Apr 10, 2026',
+          assignedTo: 'Maya',
+          description: 'Coordinate inventory rebalancing for West zone.',
+          dueDate: 'Apr 13, 2026',
         ),
       ],
-      decisions: const [
-        'Allocate 15% more budget to premium product marketing.',
-        'Schedule quarterly supply chain review.',
-        'Present Q1 results to board on April 20.',
+      decisions: [
+        'Increase buffer stock for premium yogurt SKUs',
+        'Track variance weekly instead of bi-weekly',
       ],
       transcriptSnippet:
-          'Ananya: The premium dairy line is outperforming expectations. Let us double down on marketing...',
-      timeline: const [
-        TimelineEvent(label: 'Transcribing', time: 'Apr 5, 11:35 AM'),
-        TimelineEvent(label: 'Analyzing', time: 'Apr 5, 11:36 AM'),
-        TimelineEvent(label: 'Completed', time: 'Apr 5, 11:36 AM'),
-      ],
+          'Neha: Pune and Ahmedabad are outperforming our assumptions. Rohan: We should lock revised numbers before Friday close.',
     ),
-    Meeting(
-      id: 'm3',
-      title: 'Sprint 14 Retrospective – Engineering',
-      date: 'Apr 03, 2026',
-      time: '2:30 PM',
-      duration: '28 min',
-      status: 'completed',
-      participants: const [
-        Participant(name: 'Dev', role: 'Tech Lead', initials: 'DV'),
-        Participant(name: 'Aarav', role: 'iOS Developer', initials: 'AR'),
-        Participant(name: 'Meera', role: 'QA Engineer', initials: 'MR'),
-        Participant(name: 'Kiran', role: 'DevOps', initials: 'KR'),
+    MeetingDraft(
+      title: 'Engineering Sprint Retrospective',
+      participants: [
+        Participant(name: 'Aarav', role: 'Mobile', initials: 'AR'),
+        Participant(name: 'Meera', role: 'QA', initials: 'ME'),
+        Participant(name: 'Kiran', role: 'DevOps', initials: 'KI'),
       ],
       executiveSummary:
-          'Sprint 14 completed with 89% velocity. Two critical bugs were resolved. Team discussed improving automated test coverage and reducing deployment pipeline times.',
-      keyMetrics: const [
-        'Sprint velocity: 89%',
-        'Bugs resolved: 12 (2 critical)',
-        'Test coverage: 72% → 78%',
-        'Deployment time: 18 min avg',
+          'The squad closed 91% sprint scope, reduced build failures, and agreed on stricter definition-of-done for stories entering QA.',
+      keyMetrics: [
+        'Sprint completion: 91%',
+        'CI failure rate reduced from 14% to 6%',
+        'Regression test cycle reduced by 22 minutes',
       ],
-      actionItems: const [
+      actionItems: [
         ActionItem(
           assignedTo: 'Meera',
-          description: 'Increase unit test coverage to 85% by sprint end.',
-          dueDate: 'Apr 17, 2026',
+          description: 'Expand automated regression suite.',
+          dueDate: 'Apr 18, 2026',
         ),
         ActionItem(
           assignedTo: 'Kiran',
-          description: 'Optimize CI/CD pipeline to reduce build times by 30%.',
-          dueDate: 'Apr 14, 2026',
+          description: 'Add flaky-test detector in CI.',
+          dueDate: 'Apr 17, 2026',
         ),
       ],
-      decisions: const [
-        'Adopt trunk-based development for faster iterations.',
-        'Introduce automated performance testing.',
+      decisions: [
+        'Adopt release freeze 24h before deployment',
+        'Run short QA triage after each feature merge',
       ],
       transcriptSnippet:
-          'Dev: Overall a solid sprint. The payment gateway fix was a priority, glad it shipped on time...',
-      timeline: const [
-        TimelineEvent(label: 'Transcribing', time: 'Apr 3, 3:00 PM'),
-        TimelineEvent(label: 'Analyzing', time: 'Apr 3, 3:01 PM'),
-        TimelineEvent(label: 'Completed', time: 'Apr 3, 3:01 PM'),
-      ],
+          'Aarav: Let us keep stories smaller so QA gets predictable windows. Meera: That would cut context switching significantly.',
     ),
-    Meeting(
-      id: 'm4',
-      title: 'Design Review – Mobile App v2.0',
-      date: 'Apr 09, 2026',
-      time: '10:00 AM',
-      duration: '15 min',
-      status: 'transcribing',
-      participants: const [
-        Participant(name: 'Riya', role: 'UI Designer', initials: 'RY'),
-        Participant(name: 'Arjun', role: 'Product Manager', initials: 'AJ'),
+    MeetingDraft(
+      title: 'Client Onboarding - Verma Industries',
+      participants: [
+        Participant(name: 'Nisha', role: 'Account Manager', initials: 'NI'),
+        Participant(name: 'Vikram', role: 'Client Rep', initials: 'VI'),
+        Participant(name: 'Sujal', role: 'Solutions', initials: 'SB'),
       ],
-      executiveSummary: '',
-      keyMetrics: const [],
-      actionItems: const [],
-      decisions: const [],
-      transcriptSnippet: '',
-      timeline: const [
-        TimelineEvent(label: 'Transcribing', time: 'Apr 9, 10:18 AM'),
+      executiveSummary:
+          'Kickoff call covered rollout milestones, stakeholder access, and reporting cadence for the first 30 days of onboarding.',
+      keyMetrics: [
+        'Target go-live date locked for Apr 24',
+        '7 stakeholders mapped to role permissions',
+        'Weekly status cadence finalized',
       ],
+      actionItems: [
+        ActionItem(
+          assignedTo: 'Nisha',
+          description: 'Send onboarding checklist and dependencies.',
+          dueDate: 'Apr 11, 2026',
+        ),
+        ActionItem(
+          assignedTo: 'Sujal',
+          description: 'Prepare architecture handoff deck.',
+          dueDate: 'Apr 12, 2026',
+        ),
+      ],
+      decisions: [
+        'Use phased rollout across 2 business units',
+        'Enable executive dashboard in week 2',
+      ],
+      transcriptSnippet:
+          'Vikram: We need clear owners for every milestone. Nisha: I will circulate an ownership matrix after this call.',
     ),
-    Meeting(
-      id: 'm5',
-      title: 'Client Onboarding – Verma Industries',
-      date: 'Apr 10, 2026',
-      time: '9:30 AM',
-      duration: '22 min',
-      status: 'processing',
-      participants: const [
-        Participant(name: 'Nisha', role: 'Account Manager', initials: 'NS'),
-        Participant(name: 'Vikram', role: 'Client Rep', initials: 'VK'),
-        Participant(name: 'Sujal', role: 'Solutions Architect', initials: 'SB'),
+    MeetingDraft(
+      title: 'Design Critique - Mobile v2.1',
+      participants: [
+        Participant(name: 'Riya', role: 'UI Design', initials: 'RI'),
+        Participant(name: 'Arjun', role: 'Product', initials: 'AJ'),
+        Participant(name: 'Tanmay', role: 'UX Research', initials: 'TA'),
       ],
-      executiveSummary: '',
-      keyMetrics: const [],
-      actionItems: const [],
-      decisions: const [],
-      transcriptSnippet: '',
-      timeline: const [
-        TimelineEvent(label: 'Transcribing', time: 'Apr 10, 9:55 AM'),
-        TimelineEvent(label: 'Analyzing', time: 'Apr 10, 9:56 AM'),
+      executiveSummary:
+          'The team finalized interaction polish for navigation flows and agreed on accessibility improvements for low-contrast components.',
+      keyMetrics: [
+        'Task completion score: 4.5/5 in prototype test',
+        'Navigation error rate dropped by 31%',
+        'Accessibility issues reduced from 12 to 4',
       ],
+      actionItems: [
+        ActionItem(
+          assignedTo: 'Riya',
+          description: 'Deliver revised component specs.',
+          dueDate: 'Apr 13, 2026',
+        ),
+        ActionItem(
+          assignedTo: 'Tanmay',
+          description: 'Run one more usability validation session.',
+          dueDate: 'Apr 15, 2026',
+        ),
+      ],
+      decisions: [
+        'Ship revised nav transitions in next beta build',
+        'Keep card density compact on meetings screen',
+      ],
+      transcriptSnippet:
+          'Arjun: The tighter hierarchy reads much better now. Riya: Great, I will push final specs by Monday morning.',
     ),
   ];
 
-  // ─── Chat Messages ───────────────────────────────────────
-
   static const List<ChatMessageData> chatHistory = [
     ChatMessageData(
-      text: "Hi! I'm your EchoMind assistant. Ask me anything about your meetings — like \"What did we discuss with the marketing team?\" or \"When is the next review?\"",
+      text: "Hi! I am your EchoMind assistant. Ask me anything about your meetings.",
       isUser: false,
       time: '3:15 PM',
     ),
@@ -301,40 +471,58 @@ class MockDataProvider {
       time: '3:16 PM',
     ),
     ChatMessageData(
-      text: 'In the Product Strategy Meeting on April 7, you assigned Suraj the task of researching competitive dairy brands and pricing models. The due date is April 16, 2026.',
+      text:
+          'You assigned Suraj to research competitor dairy brands in the Amul Dairy Strategy Meeting. Due date: Apr 16, 2026.',
       isUser: false,
       time: '3:16 PM',
     ),
     ChatMessageData(
-      text: 'List upcoming meetings.',
+      text: 'When is the next meeting?',
       isUser: true,
       time: '3:17 PM',
     ),
     ChatMessageData(
-      text: 'Here are your upcoming meetings:\n\n• April 15 – Review interactive plots with Jeremy\n• April 16 – Review revenue insights with Priya\n• April 17 – Amul strategy follow-up meeting\n• April 20 – Q1 board presentation',
+      text:
+          'Your next meeting is Regional Sales Forecast Sync on Apr 12 at 11:00 AM.',
       isUser: false,
       time: '3:17 PM',
     ),
     ChatMessageData(
-      text: 'Summarize Q1 revenue performance.',
+      text: 'What were the key decisions from the Amul meeting?',
       isUser: true,
       time: '3:18 PM',
     ),
     ChatMessageData(
-      text: 'Based on the Q1 Revenue Review meeting on April 5:\n\n📊 Total Revenue: ₹42.3 Cr (8% above target)\n📈 Premium segment grew 22%\n💰 Gross margin: 34.2%\n⚠️ Operating expenses increased 5.1%\n\nThe team recommended allocating 15% more budget to premium product marketing and scheduling a quarterly supply chain review.',
+      text:
+          'Key decisions: ship an MVP in 4 weeks, track retention metrics weekly, and prioritize the revenue dashboard for leadership.',
       isUser: false,
       time: '3:18 PM',
     ),
   ];
 
-  // ─── Processing Steps ────────────────────────────────────
+  static String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}';
+  }
 
-  static const List<String> processingSteps = [
-    'Uploading audio',
-    'Transcribing conversation',
-    'Extracting insights',
-    'Generating summary',
-    'Identifying action items',
-    'Creating meeting report',
-  ];
+  static String _formatTime(DateTime date) {
+    final hour24 = date.hour;
+    final period = hour24 >= 12 ? 'PM' : 'AM';
+    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour12:$minute $period';
+  }
 }

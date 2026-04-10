@@ -1,7 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../core/meeting_state.dart';
 import '../core/mock_data.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
@@ -19,41 +21,46 @@ class MeetingsListScreenState extends State<MeetingsListScreen>
   @override
   bool get wantKeepAlive => true;
 
-  final List<Meeting> _meetings = MockDataProvider.meetings;
-
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(MeetingCardState state) {
     Color badgeColor;
     IconData badgeIcon;
     String label;
     bool showSpinner = false;
 
-    switch (status) {
-      case 'uploaded':
+    switch (state) {
+      case MeetingCardState.recording:
+        badgeColor = const Color(0xFFFF4D4D);
+        badgeIcon = Icons.mic_rounded;
+        label = 'Recording';
+        break;
+      case MeetingCardState.uploading:
         badgeColor = AppColors.info;
         badgeIcon = Icons.cloud_upload_rounded;
-        label = 'Uploaded';
+        label = 'Uploading';
         break;
-      case 'transcribing':
+      case MeetingCardState.transcribing:
         badgeColor = AppColors.warning;
         badgeIcon = Icons.hourglass_top_rounded;
         label = 'Transcribing';
         showSpinner = true;
         break;
-      case 'processing':
+      case MeetingCardState.analyzingInsights:
         badgeColor = AppColors.secondaryBlue;
         badgeIcon = Icons.auto_awesome_rounded;
-        label = 'Processing';
+        label = 'Analyzing';
         showSpinner = true;
         break;
-      case 'completed':
+      case MeetingCardState.generatingSummary:
+        badgeColor = AppColors.primaryPeach;
+        badgeIcon = Icons.notes_rounded;
+        label = 'Summary';
+        showSpinner = true;
+        break;
+      case MeetingCardState.completed:
         badgeColor = AppColors.success;
         badgeIcon = Icons.check_circle_rounded;
         label = 'Completed';
         break;
-      default:
-        badgeColor = AppColors.error;
-        badgeIcon = Icons.error_rounded;
-        label = 'Failed';
     }
 
     return Container(
@@ -95,6 +102,7 @@ class MeetingsListScreenState extends State<MeetingsListScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final meetings = context.watch<MeetingsController>().meetings;
 
     return SafeArea(
       bottom: false,
@@ -122,7 +130,7 @@ class MeetingsListScreenState extends State<MeetingsListScreen>
                     ),
                   ),
                   child: Text(
-                    '${_meetings.length}',
+                    '${meetings.length}',
                     style: AppTypography.labelLarge.copyWith(
                       color: AppColors.primaryPeach,
                       fontSize: 13,
@@ -148,187 +156,218 @@ class MeetingsListScreenState extends State<MeetingsListScreen>
   }
 
   Widget _buildMeetingsList() {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-      itemCount: _meetings.length,
-      itemBuilder: (context, index) {
-        final meeting = _meetings[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: BentoTile(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SummaryScreen(meetingId: meeting.id),
-                ),
-              );
-            },
-            accentColor: _getStatusColor(meeting.status),
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title + arrow
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Status dot
-                    Container(
-                      margin: const EdgeInsets.only(top: 5),
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _getStatusColor(meeting.status),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _getStatusColor(meeting.status).withOpacity(0.5),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        meeting.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.titleMedium,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: AppColors.textTertiary.withOpacity(0.4),
-                      size: 14,
-                    ),
-                  ],
-                ),
+    return Consumer<MeetingsController>(
+      builder: (context, meetingsController, child) {
+        final meetings = meetingsController.meetings;
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+          itemCount: meetings.length,
+          itemBuilder: (context, index) {
+            final meeting = meetings[index];
+            final inserted = meetingsController.isNewlyInserted(meeting.id);
 
-                const SizedBox(height: 10),
-
-                // Date, time, duration row
-                Padding(
-                  padding: const EdgeInsets.only(left: 20),
-                  child: Row(
-                    children: [
-                      Icon(Icons.calendar_today_rounded,
-                          size: 12, color: AppColors.textTertiary),
-                      const SizedBox(width: 6),
-                      Text(
-                        meeting.date,
-                        style: AppTypography.caption,
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(Icons.access_time_rounded,
-                          size: 12, color: AppColors.textTertiary),
-                      const SizedBox(width: 4),
-                      Text(
-                        meeting.time,
-                        style: AppTypography.caption,
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(Icons.timer_outlined,
-                          size: 12, color: AppColors.textTertiary),
-                      const SizedBox(width: 4),
-                      Text(
-                        meeting.duration,
-                        style: AppTypography.caption,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                // Summary preview (only for completed)
-                if (meeting.executiveSummary.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 20),
-                    child: Text(
-                      meeting.executiveSummary,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textTertiary,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(height: 12),
-
-                // Bottom: participants + status badge
-                Padding(
-                  padding: const EdgeInsets.only(left: 20),
-                  child: Row(
-                    children: [
-                      // Participant avatars (stacked)
-                      SizedBox(
-                        width: meeting.participants.length * 22.0 + 4,
-                        height: 28,
-                        child: Stack(
-                          children: List.generate(
-                            meeting.participants.length > 4
-                                ? 4
-                                : meeting.participants.length,
-                            (i) {
-                              return Positioned(
-                                left: i * 18.0,
-                                child: Container(
-                                  width: 28,
-                                  height: 28,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: _avatarColor(i),
-                                    border: Border.all(
-                                      color: AppColors.background,
-                                      width: 2,
-                                    ),
+            return AnimatedSlide(
+              duration: const Duration(milliseconds: 420),
+              curve: Curves.easeOutCubic,
+              offset: inserted ? const Offset(0, 0.2) : Offset.zero,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 420),
+                opacity: inserted ? 0.0 : 1.0,
+                curve: Curves.easeOut,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: BentoTile(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SummaryScreen(meetingId: meeting.id),
+                        ),
+                      );
+                    },
+                    accentColor: _getStatusColor(meeting.state),
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(top: 5),
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _getStatusColor(meeting.state),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _getStatusColor(meeting.state)
+                                        .withOpacity(0.5),
+                                    blurRadius: 8,
                                   ),
-                                  child: Center(
-                                    child: Text(
-                                      meeting.participants[i].initials,
-                                      style: AppTypography.caption.copyWith(
-                                        color: Colors.white,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                meeting.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.titleMedium,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              color: AppColors.textTertiary.withOpacity(0.4),
+                              size: 14,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 20),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_today_rounded,
+                                  size: 12, color: AppColors.textTertiary),
+                              const SizedBox(width: 6),
+                              Text(meeting.date, style: AppTypography.caption),
+                              const SizedBox(width: 12),
+                              Icon(Icons.access_time_rounded,
+                                  size: 12, color: AppColors.textTertiary),
+                              const SizedBox(width: 4),
+                              Text(meeting.time, style: AppTypography.caption),
+                              const SizedBox(width: 12),
+                              Icon(Icons.timer_outlined,
+                                  size: 12, color: AppColors.textTertiary),
+                              const SizedBox(width: 4),
+                              Text(meeting.duration, style: AppTypography.caption),
+                            ],
                           ),
                         ),
-                      ),
-                      const Spacer(),
-                      _buildStatusBadge(meeting.status),
-                    ],
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 20),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            child: meeting.state == MeetingCardState.completed
+                                ? Text(
+                                    meeting.executiveSummary,
+                                    key: const ValueKey('summary'),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.textTertiary,
+                                      height: 1.4,
+                                    ),
+                                  )
+                                : _buildProcessingContent(meeting),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 20),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: meeting.participants.length * 22.0 + 4,
+                                height: 28,
+                                child: Stack(
+                                  children: List.generate(
+                                    meeting.participants.length > 4
+                                        ? 4
+                                        : meeting.participants.length,
+                                    (i) {
+                                      return Positioned(
+                                        left: i * 18.0,
+                                        child: Container(
+                                          width: 28,
+                                          height: 28,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: _avatarColor(i),
+                                            border: Border.all(
+                                              color: AppColors.background,
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              meeting.participants[i].initials,
+                                              style:
+                                                  AppTypography.caption.copyWith(
+                                                color: Colors.white,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              _buildStatusBadge(meeting.state),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'uploaded':
+  Widget _buildProcessingContent(Meeting meeting) {
+    return Column(
+      key: const ValueKey('processing'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          meeting.state.cardLabel,
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.primaryPeach,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            minHeight: 7,
+            value: meeting.state.progress,
+            backgroundColor: AppColors.glass,
+            color: AppColors.primaryPeach,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _getStatusColor(MeetingCardState state) {
+    switch (state) {
+      case MeetingCardState.recording:
+        return const Color(0xFFFF4D4D);
+      case MeetingCardState.uploading:
         return AppColors.info;
-      case 'transcribing':
+      case MeetingCardState.transcribing:
         return AppColors.warning;
-      case 'processing':
+      case MeetingCardState.analyzingInsights:
         return AppColors.secondaryBlue;
-      case 'completed':
+      case MeetingCardState.generatingSummary:
+        return AppColors.primaryPeach;
+      case MeetingCardState.completed:
         return AppColors.success;
-      default:
-        return AppColors.error;
     }
   }
 

@@ -2,15 +2,17 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../core/meeting_state.dart';
+import '../core/recording_controller.dart';
 import '../core/theme.dart';
 import '../core/widgets.dart';
-import 'processing_screen.dart';
 
 class HomeRecordScreen extends StatefulWidget {
-  final VoidCallback onUploadComplete;
+  final VoidCallback onMeetingCreated;
 
-  const HomeRecordScreen({super.key, required this.onUploadComplete});
+  const HomeRecordScreen({super.key, required this.onMeetingCreated});
 
   @override
   State<HomeRecordScreen> createState() => _HomeRecordScreenState();
@@ -18,11 +20,6 @@ class HomeRecordScreen extends StatefulWidget {
 
 class _HomeRecordScreenState extends State<HomeRecordScreen>
     with TickerProviderStateMixin {
-  bool _isRecording = false;
-  bool _isProcessing = false;
-  String _recordingTime = '00:00';
-  int _elapsedSeconds = 0;
-
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -63,61 +60,25 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
     super.dispose();
   }
 
-  void _toggleRecording() {
-    if (_isProcessing) return;
+  Future<void> _toggleRecording() async {
+    final recordingController = context.read<RecordingController>();
+    final meetingsController = context.read<MeetingsController>();
 
-    if (_isRecording) {
-      // Stop recording → go to processing
-      setState(() {
-        _isRecording = false;
-        _isProcessing = true;
-      });
-
-      // Navigate to processing screen
-      Navigator.of(context).push(
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => ProcessingScreen(
-            onComplete: () {
-              Navigator.of(context).pop();
-              if (mounted) {
-                setState(() => _isProcessing = false);
-                widget.onUploadComplete();
-              }
-            },
-          ),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 400),
-        ),
-      );
+    if (recordingController.isRecording) {
+      final elapsed = await recordingController.stopRecording();
+      if (!mounted) return;
+      meetingsController.addRecordedMeeting(elapsed);
+      widget.onMeetingCreated();
     } else {
-      // Start recording
-      setState(() {
-        _isRecording = true;
-        _elapsedSeconds = 0;
-        _recordingTime = '00:00';
-      });
-      _startTimer();
+      await recordingController.startRecording();
     }
-  }
-
-  void _startTimer() {
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted || !_isRecording) return false;
-      setState(() {
-        _elapsedSeconds++;
-        final minutes = (_elapsedSeconds ~/ 60).toString().padLeft(2, '0');
-        final seconds = (_elapsedSeconds % 60).toString().padLeft(2, '0');
-        _recordingTime = '$minutes:$seconds';
-      });
-      return true;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final recording = context.watch<RecordingController>();
+    final isRecording = recording.isRecording;
+
     return SafeArea(
       bottom: false,
       child: Padding(
@@ -151,10 +112,10 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
             const SizedBox(height: 24),
 
             // Recording timer
-            if (_isRecording)
+            if (isRecording)
               Center(
                 child: Text(
-                  _recordingTime,
+                  recording.formattedDuration,
                   style: AppTypography.displayMedium.copyWith(
                     color: AppColors.primaryPeach,
                     fontWeight: FontWeight.w800,
@@ -172,7 +133,7 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
             const SizedBox(height: 24),
 
             // Wave visualization
-            if (_isRecording) _buildWaveVisualization(),
+            if (isRecording) _buildWaveVisualization(),
 
             const Spacer(),
             const SizedBox(height: 80),
@@ -183,6 +144,8 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
   }
 
   Widget _buildMicrophoneOrb() {
+    final isRecording = context.watch<RecordingController>().isRecording;
+
     return GestureDetector(
       onTap: _toggleRecording,
       child: AnimatedBuilder(
@@ -193,8 +156,8 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
             height: 220,
             child: Stack(
               alignment: Alignment.center,
-              children: [
-                if (_isRecording) ...[
+                children: [
+                if (isRecording) ...[
                   Container(
                     width: 220,
                     height: 220,
@@ -223,7 +186,7 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
                   ),
                 ],
 
-                if (_isRecording)
+                if (isRecording)
                   Transform.rotate(
                     angle: _ringRotation.value,
                     child: Container(
@@ -257,7 +220,7 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     boxShadow: [
-                      if (_isRecording)
+                      if (isRecording)
                         BoxShadow(
                           color: AppColors.primaryPeach.withOpacity(
                             0.35 * _pulseAnimation.value,
@@ -273,7 +236,7 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
                       child: Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: _isRecording
+                          gradient: isRecording
                               ? RadialGradient(
                                   colors: [
                                     AppColors.primaryPeach.withOpacity(0.8),
@@ -289,27 +252,21 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
                                   ],
                                 ),
                           border: Border.all(
-                            color: _isRecording
+                            color: isRecording
                                 ? AppColors.primaryPeach.withOpacity(0.5)
                                 : AppColors.glassBorder,
                             width: 1.5,
                           ),
                         ),
                         child: Center(
-                          child: _isProcessing
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2.5,
-                                )
-                              : Icon(
-                                  _isRecording
-                                      ? Icons.stop_rounded
-                                      : Icons.mic_none_rounded,
-                                  size: 56,
-                                  color: _isRecording
-                                      ? Colors.white
-                                      : AppColors.textSecondary,
-                                ),
+                          child: Icon(
+                            isRecording
+                                ? Icons.stop_rounded
+                                : Icons.mic_none_rounded,
+                            size: 56,
+                            color:
+                                isRecording ? Colors.white : AppColors.textSecondary,
+                          ),
                         ),
                       ),
                     ),
@@ -324,6 +281,8 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
   }
 
   Widget _buildStatusPill() {
+    final isRecording = context.watch<RecordingController>().isRecording;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.pill),
       child: BackdropFilter(
@@ -332,12 +291,12 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
           duration: const Duration(milliseconds: 300),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           decoration: BoxDecoration(
-            color: _isRecording
+            color: isRecording
                 ? AppColors.primaryPeach.withOpacity(0.1)
                 : AppColors.glass,
             borderRadius: BorderRadius.circular(AppRadius.pill),
             border: Border.all(
-              color: _isRecording
+              color: isRecording
                   ? AppColors.primaryPeach.withOpacity(0.3)
                   : AppColors.glassBorder,
             ),
@@ -345,7 +304,7 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_isRecording) ...[
+              if (isRecording) ...[
                 Container(
                   width: 8,
                   height: 8,
@@ -358,13 +317,11 @@ class _HomeRecordScreenState extends State<HomeRecordScreen>
                 const SizedBox(width: 10),
               ],
               Text(
-                _isProcessing
-                    ? 'Extracting intelligence...'
-                    : (_isRecording
-                        ? 'Listening to meeting...'
-                        : 'Tap to begin recording'),
+                isRecording
+                    ? 'Listening to meeting...'
+                    : 'Tap to begin recording',
                 style: AppTypography.bodySmall.copyWith(
-                  color: _isRecording
+                  color: isRecording
                       ? AppColors.primaryPeach
                       : AppColors.textTertiary,
                   fontWeight: FontWeight.w600,
