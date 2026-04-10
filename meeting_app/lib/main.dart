@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'core/auth_service.dart';
 import 'core/theme.dart';
@@ -36,28 +37,45 @@ class SmartMeetingApp extends StatelessWidget {
         scaffoldBackgroundColor: AppColors.background,
         colorScheme: const ColorScheme.dark(
           primary: AppColors.primaryPeach,
+          secondary: AppColors.secondaryBlue,
           surface: AppColors.surface,
-          background: AppColors.background,
+          error: AppColors.error,
         ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: AppColors.background,
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
-          iconTheme: IconThemeData(color: AppColors.textPrimary),
-          titleTextStyle: TextStyle(
+          iconTheme: const IconThemeData(color: AppColors.textPrimary),
+          titleTextStyle: GoogleFonts.inter(
             color: AppColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
+            letterSpacing: -0.3,
           ),
         ),
-        textTheme: const TextTheme(
-          displayLarge: TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold),
-          headlineMedium: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
-          titleLarge: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w600),
-          titleMedium: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
-          bodyLarge: TextStyle(color: AppColors.textPrimary, fontSize: 16, height: 1.5),
-          bodyMedium: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.4),
-          bodySmall: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        textTheme: TextTheme(
+          displayLarge: AppTypography.displayLarge,
+          headlineMedium: AppTypography.headlineLarge,
+          titleLarge: AppTypography.titleLarge,
+          titleMedium: AppTypography.titleMedium,
+          bodyLarge: AppTypography.bodyLarge,
+          bodyMedium: AppTypography.bodyMedium,
+          bodySmall: AppTypography.bodySmall,
+        ),
+        dividerTheme: const DividerThemeData(
+          color: AppColors.border,
+          thickness: 0.5,
+          space: 0,
+        ),
+        snackBarTheme: SnackBarThemeData(
+          backgroundColor: AppColors.surfaceElevated,
+          contentTextStyle: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textPrimary,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          behavior: SnackBarBehavior.floating,
         ),
         useMaterial3: true,
       ),
